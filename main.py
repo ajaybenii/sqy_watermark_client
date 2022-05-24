@@ -21,7 +21,6 @@ app = FastAPI(
 class ImageDetails(BaseModel):
     url_: str
     
- 
 @app.post("/addWatermark_by_file")
 async def add_watermark_by_file(position: str = Query("centre", enum=["centre", "bottom_right","bottom_left","bottom"]),width_percentage: Optional[float] = Query("0.2"),insert_image: UploadFile=File(...),watermark_image: UploadFile=File(...)):
 
@@ -91,8 +90,6 @@ async def add_watermark_by_file(position: str = Query("centre", enum=["centre", 
     buf.seek(0)
     
     return StreamingResponse(buf,media_type=get_content_type(format_))
-
-
 
 @app.post("/addWatermark_by_URL")
 async def add_watermark_by_URL(insert_image:str,logo_image:str,position: str = Query("centre", enum=["centre", "bottom_right","bottom_left","bottom"]),width_percentage: Optional[float] = Query("0.2")):
