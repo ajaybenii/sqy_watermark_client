@@ -1,22 +1,20 @@
+import io
+import PIL
+
 from io import BytesIO
 from typing import Optional
 from urllib.parse import urlparse
- 
-import numpy as np
-from PIL import Image, ImageSequence
+
+from PIL import Image
 from pydantic import BaseModel
-from fastapi import FastAPI, File, UploadFile, HTTPException
+import requests
+from fastapi import FastAPI, File, UploadFile
 from fastapi.responses import StreamingResponse
 from fastapi.param_functions import Query
  
- 
-SQUARE_YARDS_LOGO = Image.open('api/images/slogo.png')
-IC_LOGO = Image.open('api/images/iclogo2.png')
-POSI_LIST = ["centre", "bottom_left", "bottom_right", "bottom"]
- 
 app = FastAPI(
     title="sqy-watermark-engine",
-    description="Use this API to paste Square Yards logo as a watermark at the center of input images",
+    description="Use this API to paste user logo as a watermark at the center of input images",
     version="2.0.1",
 )
 
@@ -25,11 +23,29 @@ class ImageDetails(BaseModel):
     
  
 @app.post("/addWatermark_by_file")
-async def add_watermark_by_file(position: str = Query("centre", enum=["centre", "bottom_right","bottom_left","bottom"]),width_percentage: Optional[float] = Query("0.2"),original_image: UploadFile=File(...),watermark_image: UploadFile=File(...)):
+async def add_watermark_by_file(position: str = Query("centre", enum=["centre", "bottom_right","bottom_left","bottom"]),width_percentage: Optional[float] = Query("0.2"),insert_image: UploadFile=File(...),watermark_image: UploadFile=File(...)):
 
-    contents = await original_image.read() #Building image
+    contents = await insert_image.read() #Building image
     original_image = Image.open(BytesIO(contents))
+    format_ = original_image.format.lower()
+    print("--format_= ",format_)
+    
+    def get_content_type(format_):
 
+        type_ = "image/jpg"
+        
+        if format_ == "gif":
+            type_ = "image/gif"
+        elif format_ == "webp":
+            type_ = "image/webp"
+        elif format_ == "png":
+            type_ = "image/png"
+        elif format_ == "jpeg":
+            type_ = "image/jpeg"
+        
+        print("typee---",type_)
+        return type_
+    
     contents2 = await watermark_image.read() #Building image
     logo = Image.open(BytesIO(contents2))
     
@@ -71,24 +87,68 @@ async def add_watermark_by_file(position: str = Query("centre", enum=["centre", 
         original_image.paste(logo, (left, top), mask=logo)
  
     buf = BytesIO()
-    original_image.save(buf, format="jpeg", quality=100)
+    original_image.save(buf,format=format_.lower(), quality=100)
     buf.seek(0)
+    
+    return StreamingResponse(buf,media_type=get_content_type(format_))
 
-    return StreamingResponse(buf,media_type="image/jpg")
+
 
 @app.post("/addWatermark_by_URL")
-async def add_watermark_by_file(original_image:str,watermark_image:str,position: str = Query("centre", enum=["centre", "bottom_right","bottom_left","bottom"]),width_percentage: Optional[float] = Query("0.2")):
+async def add_watermark_by_URL(insert_image:str,logo_image:str,position: str = Query("centre", enum=["centre", "bottom_right","bottom_left","bottom"]),width_percentage: Optional[float] = Query("0.2")):
+    
+    response = requests.get(insert_image)
+    image_bytes = io.BytesIO(response.content)
+    
+    original_image = Image.open(image_bytes)
+    format_ = original_image.format.lower()
+    
+    response = requests.get(logo_image.lower())
+    image_bytes2 = io.BytesIO(response.content) 
+    logo = Image.open(image_bytes2).convert("RGBA")
+    
 
-    contents = await original_image.read() #Building image
-    original_image = Image.open(BytesIO(contents))
+    filename = insert_image.lower()
+    print(filename)
+    #print(filename)
+    #this function get the format type of input image
+    
+    def get_format(format_):  
 
-    contents2 = await watermark_image.read() #Building image
-    logo = Image.open(BytesIO(contents2))
+        if format_ == "jpg":
+            format_ = "jpg"
+        elif format_== "jpeg":
+            format_ = "jpeg"
+        elif format_ == "webp":
+            format_ = "WebP"
+        elif format_ == "gif":
+            format_ = "gif"
+    
+        return format_
+ 
+   
+    # #this function for gave the same type of format to output
+    def get_content_type(format_):
+        
+        if format_ == "gif":
+            type_ = "image/gif"
+        elif format_ == "webp":
+            type_ = "image/webp"
+        elif format_ == "png":
+            type_ = "image/png"
+        elif format_ == "jpg":
+            type_ = "image/jpg"
+        elif format_ == "jpeg":
+            type_ = "image/jpeg"
+        #print(type_)
+        return type_
+
+    format_ = get_format(format_.lower())#here format_ store the type of image by filename
+    
     
     logo_width = int(original_image.size[0]*width_percentage)
     logo_height = int(logo.size[1]*(logo_width/logo.size[0]))
  
-
     if logo_height > original_image.size[1]:
         logo_height = original_image.size[1]
     
@@ -115,15 +175,17 @@ async def add_watermark_by_file(original_image:str,watermark_image:str,position:
         top = original_image.size[1] - logo_height
         left = 0
         original_image.paste(logo, (left, top), mask=logo)
+   
+   
     elif position == "bottom":
         logo = logo.resize((logo_width, logo_height))
  
         top = original_image.size[1] - logo_height
         left = (original_image.size[0]//2) - (logo_width//2)
-        original_image.paste(logo, (left, top), mask=logo)
+        original_image.paste(logo,(left, top), mask=logo)
  
     buf = BytesIO()
-    original_image.save(buf, format="jpeg", quality=100)
+    original_image.save(buf, format=format_.lower(), quality=100)
     buf.seek(0)
 
-    return StreamingResponse(buf,media_type="image/jpg")
+    return StreamingResponse(buf,media_type=get_content_type(format_))
