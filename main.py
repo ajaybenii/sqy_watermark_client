@@ -28,7 +28,7 @@ async def root():
 
     
 @app.post("/addWatermark_by_file")
-async def add_watermark_by_file(position: str = Query("centre", enum=["centre", "bottom_right","bottom_left","bottom"]),width_percentage: Optional[float] = Query("0.2"),insert_image: UploadFile=File(...),watermark_image: UploadFile=File(...)):
+async def add_watermark_by_file(position: str = Query("centre", enum=["centre", "bottom_right","bottom_left","bottom"]),width_percentage: Optional[float] = Query("0.2"),insert_image: UploadFile=File(...),logo_image: UploadFile=File(...)):
 
     contents = await insert_image.read() #Building image
     original_image = Image.open(BytesIO(contents))
@@ -49,9 +49,13 @@ async def add_watermark_by_file(position: str = Query("centre", enum=["centre", 
         
         return type_
     
-    contents2 = await watermark_image.read() #Building image
+    contents2 = await logo_image.read() #Building image
     logo = Image.open(BytesIO(contents2))
     
+    # logo = logo.convert("RGB")
+    # logo.save("img1g.png")
+    # logo = Image.open("img1g.png")
+
     logo_width = int(original_image.size[0]*width_percentage)
     logo_height = int(logo.size[1]*(logo_width/logo.size[0]))
  
@@ -61,8 +65,8 @@ async def add_watermark_by_file(position: str = Query("centre", enum=["centre", 
     
 
     if position == "centre":
+
         logo = logo.resize((logo_width, logo_height))
- 
         top = (original_image.size[1]//2) - (logo_height//2)
         left = (original_image.size[0]//2) - (logo_width//2)
         original_image.paste(logo, (left, top), mask=logo)
